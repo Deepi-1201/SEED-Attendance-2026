@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Attendance System</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f0f4f8; min-height: 100vh; }
+
+        /* LOGIN */
+        .login-screen { max-width: 400px; margin: 80px auto; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.12); }
+        .login-screen h2 { text-align: center; color: #2c3e50; margin-bottom: 25px; font-size: 22px; }
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; margin-bottom: 6px; font-weight: bold; color: #555; font-size: 14px; }
+        .form-group input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; outline: none; }
+        .form-group input:focus { border-color: #4CAF50; }
+        .login-btn { width: 100%; padding: 14px; background: #4CAF50; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; }
+        .login-btn:hover { background: #43a047; }
+        .error-msg { background: #fdecea; color: #c62828; padding: 10px; border-radius: 6px; font-size: 14px; margin-top: 12px; display: none; }
+
+        /* HEADER */
+        .app-header { background: #2c3e50; color: white; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        .app-header h1 { font-size: 17px; }
+        .logout-btn { background: #e74c3c; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+
+        .main-content { max-width: 860px; margin: 0 auto; padding: 18px; }
+
+        /* FILTERS */
+        .filters-card { background: white; border-radius: 12px; padding: 18px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
+        .filters-card h3 { color: #2c3e50; margin-bottom: 14px; font-size: 15px; }
+        .filters-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+        .filter-group label { display: block; font-weight: bold; color: #555; font-size: 12px; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.4px; }
+        .filter-group select { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; background: white; cursor: pointer; }
+        .filter-group select:focus { border-color: #4CAF50; }
+
+        /* INFO CARD */
+        .info-card { background: white; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); border-left: 5px solid #4CAF50; }
+        .info-card p { font-size: 13px; color: #444; }
+        .dept-tags { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+        .dept-tag { background: #e8f5e9; color: #2e7d32; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; }
+
+        /* STATS */
+        .stats-bar { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 16px; }
+        .stat-box { background: white; border-radius: 10px; padding: 14px 10px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
+        .stat-num { font-size: 30px; font-weight: bold; }
+        .stat-label { font-size: 11px; color: #777; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-box.total .stat-num { color: #2c3e50; }
+        .stat-box.present .stat-num { color: #4CAF50; }
+        .stat-box.absent .stat-num { color: #e74c3c; }
+
+        /* STUDENT CARD */
+        .attendance-card { background: white; border-radius: 16px; padding: 28px 24px; text-align: center; box-shadow: 0 4px 16px rgba(0,0,0,0.09); margin-bottom: 16px; }
+        .student-progress-txt { font-size: 13px; color: #888; margin-bottom: 10px; }
+        .progress-wrap { background: #eee; border-radius: 10px; height: 7px; margin-bottom: 22px; }
+        .progress-fill { background: linear-gradient(90deg,#4CAF50,#81C784); height: 7px; border-radius: 10px; transition: width 0.4s; }
+        .student-sno { font-size: 12px; color: #bbb; margin-bottom: 4px; }
+        .student-name-big { font-size: 26px; font-weight: bold; color: #2c3e50; margin-bottom: 5px; }
+        .student-roll-txt { font-size: 14px; color: #666; margin-bottom: 4px; }
+        .student-dept-txt { font-size: 12px; color: #888; background: #f5f5f5; display: inline-block; padding: 3px 12px; border-radius: 20px; margin-bottom: 26px; }
+
+        /* BIG TOGGLE BUTTON */
+        .attendance-btn { width: 100%; max-width: 300px; padding: 20px; border: none; border-radius: 14px; font-size: 20px; font-weight: bold; cursor: pointer; transition: all 0.25s; margin-bottom: 20px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
+        .attendance-btn.unmarked { background: #f5f5f5; color: #aaa; border: 3px dashed #ccc; }
+        .attendance-btn.present-btn { background: #4CAF50; color: white; box-shadow: 0 6px 18px rgba(76,175,80,0.35); }
+        .attendance-btn.absent-btn { background: #e74c3c; color: white; box-shadow: 0 6px 18px rgba(231,76,60,0.35); }
+        .attendance-btn:active { transform: scale(0.97); }
+
+        /* NAV BUTTONS */
+        .nav-buttons { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+        .nav-btn { padding: 11px 26px; border: none; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; transition: all 0.2s; }
+        .nav-btn.prev { background: #ecf0f1; color: #555; }
+        .nav-btn.next { background: #3498db; color: white; }
+        .nav-btn.finish { background: #9b59b6; color: white; }
+        .nav-btn:hover { opacity: 0.85; }
+        .nav-btn:disabled { opacity: 0.35; cursor: not-allowed; background: #ccc !important; }
+
+        /* ALWAYS VISIBLE SUBMIT BAR */
+        .sticky-submit-bar { background: white; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.09); display: flex; gap: 10px; flex-wrap: wrap; }
+        .sticky-submit-bar button { flex: 1; min-width: 110px; padding: 13px 10px; border: none; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; transition: all 0.2s; }
+        .sticky-submit-bar button:hover { opacity: 0.88; transform: translateY(-1px); }
+        .btn-submit { background: #4CAF50; color: white; }
+        .btn-edit-all { background: #f39c12; color: white; }
+        .btn-export { background: #3498db; color: white; }
+        .btn-add { background: #9b59b6; color: white; }
+
+        /* EDIT LIST MODAL (full list to pick student) */
+        .edit-modal { display: none; position: fixed; z-index: 500; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); overflow: auto; }
+        .edit-modal-content { background: white; margin: 5% auto; border-radius: 14px; width: 92%; max-width: 600px; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,0.2); }
+        .edit-modal-header { padding: 18px 20px; background: #2c3e50; color: white; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .edit-modal-header h3 { font-size: 16px; }
+        .edit-modal-close { background: none; border: none; color: white; font-size: 24px; cursor: pointer; padding: 0; line-height: 1; }
+        .edit-modal-body { overflow-y: auto; padding: 10px; flex: 1; }
+        .edit-student-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-radius: 10px; margin-bottom: 6px; border: 1.5px solid #f0f0f0; cursor: pointer; transition: all 0.2s; }
+        .edit-student-item:hover { background: #f0f4f8; border-color: #3498db; }
+        .edit-student-item .esi-left { display: flex; align-items: center; gap: 12px; }
+        .esi-num { width: 30px; height: 30px; border-radius: 50%; background: #ecf0f1; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #555; flex-shrink: 0; }
+        .esi-name { font-weight: bold; font-size: 14px; color: #2c3e50; }
+        .esi-roll { font-size: 12px; color: #888; }
+        .esi-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; flex-shrink: 0; }
+        .esi-badge.present { background: #e8f5e9; color: #2e7d32; }
+        .esi-badge.absent { background: #fdecea; color: #c62828; }
+        .esi-badge.unmarked { background: #fff8e1; color: #f57f17; }
+
+        /* MESSAGES */
+        .message { padding: 13px 16px; border-radius: 8px; margin-bottom: 14px; font-size: 14px; display: none; }
+        .message.success { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+        .message.error { background: #fdecea; color: #c62828; border: 1px solid #ef9a9a; }
+
+        /* SUBMIT CONFIRMATION MODAL */
+        .submit-confirm-modal { display: none; position: fixed; z-index: 2000; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); }
+        .submit-confirm-content { background: white; margin: 10% auto; border-radius: 14px; width: 90%; max-width: 450px; padding: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+        .submit-confirm-content h3 { color: #2c3e50; margin-bottom: 18px; font-size: 18px; text-align: center; }
+        .submit-stats { margin-bottom: 16px; }
+        .submit-stat-row { padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 15px; }
+        .submit-stat-row:last-child { border-bottom: none; }
+        .submit-stat-row strong { display: inline-block; width: 100px; }
+        .absent-list-wrap { max-height: 150px; overflow-y: auto; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; margin-top: 8px; }
+        .absent-list { color: #c62828; font-weight: bold; line-height: 1.8; word-wrap: break-word; }
+        .submit-confirm-buttons { display: flex; gap: 10px; margin-top: 20px; }
+        .submit-confirm-buttons button { flex: 1; padding: 13px; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; }
+        .btn-cancel-submit { background: #e0e0e0; color: #555; }
+        .btn-confirm-submit { background: #4CAF50; color: white; }
+
+        /* ADD STUDENT MODAL */
+        .modal { display: none; position: fixed; z-index: 1000; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); overflow: auto; }
+        .modal-content { background: white; margin: 8% auto; padding: 26px; border-radius: 12px; width: 90%; max-width: 440px; }
+        .modal-content h2 { margin-bottom: 18px; color: #2c3e50; font-size: 18px; }
+        .modal-content input, .modal-content select { width: 100%; padding: 11px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; margin-top: 5px; }
+        .modal-content button[type="submit"] { width: 100%; padding: 13px; background: #4CAF50; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; margin-top: 16px; }
+        .close-btn { float: right; font-size: 24px; cursor: pointer; color: #aaa; line-height: 1; }
+
+        .hidden { display: none; }
+        .loading-txt { text-align: center; padding: 30px; color: #888; font-size: 15px; }
+        .no-students-txt { text-align: center; padding: 30px; color: #aaa; font-size: 15px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
+
+        /* RESPONSIVE */
+        @media (max-width: 640px) {
+            .app-header h1 { font-size: 14px; }
+            .main-content { padding: 10px; }
+            .filters-grid { grid-template-columns: 1fr; gap: 8px; }
+            .stats-bar { gap: 8px; }
+            .stat-num { font-size: 24px; }
+            .stat-label { font-size: 10px; }
+            .attendance-card { padding: 20px 14px; }
+            .student-name-big { font-size: 21px; }
+            .attendance-btn { font-size: 17px; padding: 16px; }
+            .nav-btn { padding: 10px 18px; font-size: 13px; }
+            .sticky-submit-bar button { font-size: 12px; padding: 11px 6px; min-width: 80px; }
+            .edit-modal-content { margin: 0; width: 100%; max-height: 100vh; border-radius: 0; }
+        }
+        @media (max-width: 380px) {
+            .stat-num { font-size: 20px; }
+            .nav-btn { padding: 9px 12px; font-size: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen" class="login-screen" style="display: block !important;">
+    <h2>🎓 Attendance System</h2>
+    
+    <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="loginUsername" placeholder="Enter username" autocomplete="username">
+    </div>
+    <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="loginPassword" placeholder="Enter password" autocomplete="current-password">
+    </div>
+    <button class="login-btn" onclick="login()">Login</button>
+    <div id="loginError" class="error-msg"></div>
+</div>
+
+<!-- MAIN APP -->
+<div id="mainApp" class="hidden" style="display:none !important;">
+    <div class="app-header">
+        <h1>🎓 Student Attendance System</h1>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+
+    <div class="main-content">
+        <div id="message" class="message"></div>
+
+        <!-- FILTERS -->
+        <div class="filters-card">
+            <h3>📋 Select Session</h3>
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <label>1. Day</label>
+                    <select id="dayFilter" onchange="loadTimeSlots()">
+                        <option value="">-- Select Day --</option>
+                        <option value="2026-02-23">Day 1 (23 Feb 2026)</option>
+                        <option value="2026-02-24">Day 2 (24 Feb 2026)</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>2. Time Slot</label>
+                    <select id="timeFilter" onchange="loadLabs()">
+                        <option value="">-- Select Time --</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>3. Lab</label>
+                    <select id="labFilter" onchange="onLabSelected()">
+                        <option value="">-- Select Lab --</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- CLASS INFO -->
+        <div id="classInfo" class="info-card hidden">
+            <p>📅 <strong><span id="classDate"></span></strong> &nbsp;⏰ <strong><span id="classTiming"></span></strong> &nbsp;🏫 <strong><span id="labNumber"></span></strong></p>
+            <div id="departmentsInLab" class="dept-tags"></div>
+        </div>
+
+        <!-- STATS -->
+        <div id="statsBar" class="stats-bar hidden">
+            <div class="stat-box total"><div class="stat-num" id="totalCount">0</div><div class="stat-label">Total</div></div>
+            <div class="stat-box present"><div class="stat-num" id="presentCount">0</div><div class="stat-label">Present</div></div>
+            <div class="stat-box absent"><div class="stat-num" id="absentCount">0</div><div class="stat-label">Absent</div></div>
+        </div>
+
+        <!-- ALWAYS VISIBLE ACTION BAR -->
+        <div id="actionBar" class="sticky-submit-bar hidden">
+            <button class="btn-submit" onclick="submitAttendance()">✅ Submit</button>
+            <button class="btn-edit-all" onclick="openEditModal()">📝 Edit List</button>
+            <button class="btn-add" onclick="openAddStudentModal()">➕ Add</button>
+            <button class="btn-export" onclick="exportToExcel()">📥 Export</button>
+            <button onclick="clearSessionData()" style="background:#e74c3c; color:white;">🔄 Clear Session</button>
+        </div>
+
+        <!-- STUDENT CARD -->
+        <div id="attendanceCard" class="attendance-card hidden">
+            <div class="student-progress-txt">Student <span id="currentIndex">1</span> of <span id="totalStudents">0</span></div>
+            <div class="progress-wrap"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+            <div class="student-sno" id="cardSno"></div>
+            <div class="student-name-big" id="cardName"></div>
+            <div class="student-roll-txt" id="cardRoll"></div>
+            <div class="student-dept-txt" id="cardDept"></div>
+            <button class="attendance-btn unmarked" id="attendanceToggleBtn" onclick="toggleCurrentStudent()">
+                <span id="btnIcon">👆</span><span id="btnText">Tap to Mark</span>
+            </button>
+            <div class="nav-buttons">
+                <button class="nav-btn prev" id="prevBtn" onclick="goToPrev()" disabled>◀ Prev</button>
+                <button class="nav-btn next" id="nextBtn" onclick="goToNext()">Next ▶</button>
+                <button class="nav-btn finish hidden" id="finishBtn" onclick="enableSubmitBtn()">✔ Done</button>
+                <button class="nav-btn hidden" id="submitFromCardBtn" onclick="submitAttendance()" style="background:#4CAF50;" disabled>✅ Submit</button>
+            </div>
+        </div>
+
+        <div id="loadingTxt" class="loading-txt hidden">⏳ Loading students...</div>
+        <div id="noStudentsTxt" class="no-students-txt hidden">No students found. Use ➕ Add to add students.</div>
+    </div>
+</div>
+
+<!-- EDIT LIST MODAL -->
+<div id="editModal" class="edit-modal">
+    <div class="edit-modal-content">
+        <div class="edit-modal-header">
+            <h3>📝 All Students — Tap to Edit</h3>
+            <button class="edit-modal-close" onclick="closeEditModal()">✕</button>
+        </div>
+        <div class="edit-modal-body" id="editModalBody"></div>
+    </div>
+</div>
+
+<!-- ADD STUDENT MODAL -->
+<div id="addStudentModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeAddStudentModal()">&times;</span>
+        <h2>➕ Add New Student</h2>
+        <form onsubmit="addStudent(event)">
+            <div class="form-group" style="margin-top:14px;">
+                <label>Roll Number</label>
+                <input type="number" id="newRollNumber" required placeholder="Enter roll number">
+            </div>
+            <div class="form-group" style="margin-top:14px;">
+                <label>Name</label>
+                <input type="text" id="newName" required placeholder="Enter student name">
+            </div>
+            <div class="form-group" style="margin-top:14px;">
+                <label>Department</label>
+                <select id="newDepartment" required>
+                    <option value="">-- Select Department --</option>
+                </select>
+            </div>
+            <button type="submit">Add Student</button>
+        </form>
+    </div>
+</div>
+
+<!-- SUBMIT CONFIRMATION MODAL -->
+<div id="submitConfirmModal" class="submit-confirm-modal">
+    <div class="submit-confirm-content">
+        <h3>📋 Submit Attendance?</h3>
+        <div class="submit-stats">
+            <div class="submit-stat-row">
+                <strong>✅ Present:</strong> <span id="submitPresentCount">0</span>
+            </div>
+            <div class="submit-stat-row">
+                <strong>❌ Absent:</strong> <span id="submitAbsentCount">0</span>
+                <div id="absentListContainer" class="hidden">
+                    <div class="absent-list-wrap">
+                        <div class="absent-list" id="absentRollList"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="submit-stat-row" id="unmarkedRow" class="hidden">
+                <strong>⚠️ Unmarked:</strong> <span id="submitUnmarkedCount">0</span>
+            </div>
+            <div class="submit-stat-row" style="border-top:2px solid #ddd; margin-top:10px; padding-top:12px; font-weight:bold;">
+                <strong>📊 Total:</strong> <span id="submitTotalCount">0</span> students
+            </div>
+        </div>
+        <div class="submit-confirm-buttons">
+            <button class="btn-cancel-submit" onclick="closeSubmitConfirm()">Cancel</button>
+            <button class="btn-confirm-submit" onclick="confirmSubmit()">✅ Submit</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const SUPABASE_URL = 'https://faakjgthrjgttlscwhys.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhYWtqZ3RocmpndHRsc2N3aHlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExODI4OTMsImV4cCI6MjA4Njc1ODg5M30.AraYEQDekjXxXpS5kmurcj0Jgy57h5w5MNy8we3zRVM';
+    const ADMIN_USERNAME = 'admin';
+    const ADMIN_PASSWORD = 'attendance2026';
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const scheduleData = [
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"09:00 AM to 11:00 AM",department:"BCOM ACCOUNTING & FINANCE (A SEC)",lab:"D 305"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"09:00 AM to 11:00 AM",department:"BCOM ACCOUNTING & FINANCE (B SEC)",lab:"E 208"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"09:00 AM to 11:00 AM",department:"BCOM BANKING & INSURANCE",lab:"Q 222"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"09:00 AM to 11:00 AM",department:"BCOM BUSINESS ANALYTICS",lab:"Q 129"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"11:00 AM to 01:00 PM",department:"B.VOC NETWORKING AND MOBILE APPLICATIONS",lab:"E 208"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"11:00 AM to 01:00 PM",department:"BA CARNATIC MUSIC",lab:"Q 222"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"11:00 AM to 01:00 PM",department:"BA ENGLISH",lab:"C 213"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"11:00 AM to 01:00 PM",department:"BCOM BUSINESS PROCESS SERVICES",lab:"D 305"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"11:00 AM to 01:00 PM",department:"BCOM COMMERCE (A SEC)",lab:"E 110"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"11:00 AM to 01:00 PM",department:"BCOM COMMERCE WITH COMPUTER APPLICATIONS (A SEC)",lab:"E 208"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"11:00 AM to 01:00 PM",department:"BCOM COMMERCE WITH COMPUTER APPLICATIONS (B SEC)",lab:"E 311"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"11:00 AM to 01:00 PM",department:"BCOM COST & MANAGEMENT ACCOUNTING",lab:"Q 222"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"11:00 AM to 01:00 PM",department:"BCOM PROFESSIONAL ACCOUNTING (A SEC)",lab:"Q 129"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"11:00 AM to 01:00 PM",department:"BCOM PROFESSIONAL ACCOUNTING (B SEC)",lab:"Q 129"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"11:00 AM to 01:00 PM",department:"BSC ZOOLOGY",lab:"D 309"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"11:00 AM to 01:00 PM",department:"MA ECONOMICS",lab:"Q 222"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"11:00 AM to 01:00 PM",department:"MSC PHYSICS",lab:"Q 129"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"01:00 PM to 02:30 PM",department:"BBA BUSINESS ADMINISTRATION (A SEC)",lab:"Q 222"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"01:00 PM to 02:30 PM",department:"BBA BUSINESS ADMINISTRATION (B SEC)",lab:"Q 129"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"01:00 PM to 02:30 PM",department:"BSC BOTANY",lab:"Q 222"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"01:00 PM to 02:30 PM",department:"BSC CATERING SCIENCE & HOTEL MANAGEMENT",lab:"E 208"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"01:00 PM to 02:30 PM",department:"BSC MATHEMATICS WITH CA",lab:"C 213"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"01:00 PM to 02:30 PM",department:"BSC VISUAL COMMUNICATION (A SEC)",lab:"D 305"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"01:00 PM to 02:30 PM",department:"BSC VISUAL COMMUNICATION (B SEC)",lab:"D 309"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"01:00 PM to 02:30 PM",department:"MCA COMPUTER APPLICATIONS",lab:"E 211"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"01:00 PM to 02:30 PM",department:"MCOM COMMERCE WITH COMPUTER APPLICATIONS",lab:"E 110"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"01:00 PM to 02:30 PM",department:"MCOM CORPORATE SECRETARYSHIP",lab:"Q 129"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"01:00 PM to 02:30 PM",department:"MSC APPLIED MICROBIOLOGY",lab:"Q 129"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"01:00 PM to 02:30 PM",department:"MSC APPLIED PSYCHOLOGY",lab:"E 311"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"02:30 PM to 04:00 PM",department:"B.VOC BANKING,STOCK AND INSURANCE",lab:"Q 222"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"02:30 PM to 04:00 PM",department:"BA ECONOMICS",lab:"E 208"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"02:30 PM to 04:00 PM",department:"BA ENGLISH",lab:"D 309"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"02:30 PM to 04:00 PM",department:"BA SOCIOLOGY",lab:"E 110"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"02:30 PM to 04:00 PM",department:"BA TAMIL",lab:"Q 129"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"02:30 PM to 04:00 PM",department:"BCOM COMMERCE",lab:"Q 129"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"02:30 PM to 04:00 PM",department:"BCOM CORPORATE SECRETARYSHIP",lab:"Q 129"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"02:30 PM to 04:00 PM",department:"BCOM CORPORATE SECRETARYSHIP (B SEC)",lab:"E 311"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"02:30 PM to 04:00 PM",department:"BSC BIOTECHNOLOGY",lab:"E 211"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"02:30 PM to 04:00 PM",department:"BSC COSTUME DESIGN & FASHION",lab:"Q 222"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"02:30 PM to 04:00 PM",department:"BSC ELECTRONICS",lab:"C 213"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"02:30 PM to 04:00 PM",department:"BSC PSYCHOLOGY",lab:"D 305"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"04:00 PM to 05:30 PM",department:"BBA LOGISTICS",lab:"Q 222"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"04:00 PM to 05:30 PM",department:"BBA RETAIL MANAGEMENT",lab:"Q 129"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"04:00 PM to 05:30 PM",department:"BCOM COMMERCE (B SEC)",lab:"D 305"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"04:00 PM to 05:30 PM",department:"BSC BIOCHEMISTRY",lab:"C 213"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"04:00 PM to 05:30 PM",department:"BSC CHEMISTRY",lab:"Q 129"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"04:00 PM to 05:30 PM",department:"BSC COMPUTER SCIENCE (A SEC)",lab:"E 311"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"04:00 PM to 05:30 PM",department:"BSC COMPUTER SCIENCE (B SEC)",lab:"E 110"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"04:00 PM to 05:30 PM",department:"BSC COMPUTER SCIENCE WITH DATA ANALYTICS",lab:"E 211"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"04:00 PM to 05:30 PM",department:"BSC ELECTRONICS",lab:"Q 222"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"04:00 PM to 05:30 PM",department:"BSC PHYSICS",lab:"Q 129"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"04:00 PM to 05:30 PM",department:"MSC BOTANY",lab:"D 309"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"04:00 PM to 05:30 PM",department:"MSC ELECTRONIC MEDIA",lab:"D 309"},
+        {date:"2026-02-23",dateDisplay:"23 February 2026",timing:"04:00 PM to 05:30 PM",department:"MSC FOOD TECHNOLOGY MANAGEMENT",lab:"E 208"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"09:00 AM to 11:00 AM",department:"BCOM E-COMMERCE",lab:"D 305"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"09:00 AM to 11:00 AM",department:"BCOM FINANCIAL SYSTEM",lab:"E 208"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"09:00 AM to 11:00 AM",department:"BCOM FOREIGN TRADE",lab:"Q 129"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"09:00 AM to 11:00 AM",department:"BCOM RETAIL MARKETING",lab:"Q 222"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"11:00 AM to 01:00 PM",department:"BCA",lab:"E 110"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"11:00 AM to 01:00 PM",department:"BSC BIOCHEMISTRY",lab:"D 309"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"11:00 AM to 01:00 PM",department:"BSC COMPUTER TECHNOLOGY",lab:"E 208"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"11:00 AM to 01:00 PM",department:"BSC INFORMATION TECHNOLOGY",lab:"Q 129"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"11:00 AM to 01:00 PM",department:"BSC MATHEMATICS",lab:"Q 222"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"11:00 AM to 01:00 PM",department:"BSC PHYSICS",lab:"D 305"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"11:00 AM to 01:00 PM",department:"BSC PSYCHOLOGY",lab:"Q 129"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"11:00 AM to 01:00 PM",department:"BSC STATISTICS",lab:"E 311"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"11:00 AM to 01:00 PM",department:"MA ENGLISH",lab:"C 213"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"11:00 AM to 01:00 PM",department:"MA TAMIL",lab:"E 211"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"01:00 PM to 02:30 PM",department:"BBA INFORMATION SYSTEMS",lab:"Q 129"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"01:00 PM to 02:30 PM",department:"BCOM CORPORATE SECRETARYSHIP (A SEC)",lab:"Q 129"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"01:00 PM to 02:30 PM",department:"BSC CHEMISTRY",lab:"E 110"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"01:00 PM to 02:30 PM",department:"BSC MICROBIOLOGY",lab:"E 311"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"01:00 PM to 02:30 PM",department:"MA JOURNALISM & MASS COMMUNICATION",lab:"Q 222"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"01:00 PM to 02:30 PM",department:"MCOM COMMERCE",lab:"D 305"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"01:00 PM to 02:30 PM",department:"MCOM INTERNATIONAL BUSINESS",lab:"Q 222"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"01:00 PM to 02:30 PM",department:"MSC COMPUTER SCIENCE",lab:"E 211"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"01:00 PM to 02:30 PM",department:"MSC COSTUME DESIGN & FASHION",lab:"E 208"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"01:00 PM to 02:30 PM",department:"MSC ENVIRONMENTAL SCIENCE",lab:"Q 222"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"01:00 PM to 02:30 PM",department:"MSC FOODS AND NUTRITION",lab:"Q 129"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"01:00 PM to 02:30 PM",department:"MSC STATISTICS",lab:"D 309"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"01:00 PM to 02:30 PM",department:"MSW SOCIAL WORK",lab:"C 213"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"02:30 PM to 04:00 PM",department:"B.VOC FOOD PROCESSING TECHNOLOGY",lab:"D 305"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"02:30 PM to 04:00 PM",department:"B.VOC HOSPITALITY MANAGEMENT",lab:"Q 222"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"02:30 PM to 04:00 PM",department:"BA ECONOMICS",lab:"Q 222"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"02:30 PM to 04:00 PM",department:"BSC NUTRITION, FOOD SERVICE MANAGEMENT & DIETETICS",lab:"Q 129"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"02:30 PM to 04:00 PM",department:"MSC APPLIED ELECTRONICS",lab:"D 305"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"02:30 PM to 04:00 PM",department:"MSC BIOCHEMISTRY",lab:"E 110"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"02:30 PM to 04:00 PM",department:"MSC BIOTECHNOLOGY",lab:"E 208"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"02:30 PM to 04:00 PM",department:"MSC CHEMISTRY",lab:"E 211"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"02:30 PM to 04:00 PM",department:"MSC CLINICAL NUTRITION AND DIETETICS",lab:"E 311"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"02:30 PM to 04:00 PM",department:"MSC CLINICAL PSYCHOLOGY",lab:"C 213"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"02:30 PM to 04:00 PM",department:"MSC HOSPITAL ADMINISTRATION",lab:"Q 129"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"02:30 PM to 04:00 PM",department:"MSC MATHEMATICS",lab:"Q 129"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"02:30 PM to 04:00 PM",department:"MSC SOFTWARE SYSTEMS",lab:"D 309"},
+        {date:"2026-02-24",dateDisplay:"24 February 2026",timing:"02:30 PM to 04:00 PM",department:"MSC ZOOLOGY",lab:"E 110"}
+    ];
+
+    let selectedDate=null, selectedTime=null, selectedLab=null;
+    let currentDepts=[], studentsData=[], attendanceStatus={}, currentIdx=0;
+
+    // ── AUTH ──
+    function login() {
+        const u=document.getElementById('loginUsername').value;
+        const p=document.getElementById('loginPassword').value;
+        const err=document.getElementById('loginError');
+        if(u===ADMIN_USERNAME && p===ADMIN_PASSWORD){
+            localStorage.setItem('loggedIn','true');
+            document.getElementById('loginScreen').style.setProperty('display', 'none', 'important');
+            document.getElementById('mainApp').style.setProperty('display', 'block', 'important');
+            document.getElementById('mainApp').classList.remove('hidden');
+            err.style.display='none';
+        } else { err.textContent='Invalid username or password'; err.style.display='block'; }
+    }
+    function logout(){
+        if(!confirm('Are you sure you want to logout?')) return;
+        localStorage.removeItem('loggedIn');
+        // Clear session data
+        localStorage.removeItem('selectedDate');
+        localStorage.removeItem('selectedTime');
+        localStorage.removeItem('selectedLab');
+        // Clear all attendance data
+        Object.keys(localStorage).forEach(key => {
+            if(key.startsWith('attendance_') || key.startsWith('currentIndex_')){
+                localStorage.removeItem(key);
+            }
+        });
+        document.getElementById('loginScreen').style.setProperty('display', 'block', 'important');
+        document.getElementById('mainApp').style.setProperty('display', 'none', 'important');
+        // Reset all selections
+        hideAll();
+        document.getElementById('dayFilter').value = '';
+        document.getElementById('timeFilter').innerHTML = '<option value="">-- Select Time --</option>';
+        document.getElementById('labFilter').innerHTML = '<option value="">-- Select Lab --</option>';
+        studentsData = [];
+        attendanceStatus = {};
+    }
+    function checkLogin(){
+        const isLoggedIn = localStorage.getItem('loggedIn');
+        console.log('Checking login status:', isLoggedIn);
+        
+        const loginScreen = document.getElementById('loginScreen');
+        const mainApp = document.getElementById('mainApp');
+        
+        if(isLoggedIn === 'true'){
+            console.log('User is logged in - showing main app');
+            loginScreen.style.setProperty('display', 'none', 'important');
+            mainApp.style.setProperty('display', 'block', 'important');
+            mainApp.classList.remove('hidden');
+            
+            // Restore previous session
+            restoreSession();
+        } else {
+            console.log('User not logged in - showing login screen');
+            loginScreen.style.setProperty('display', 'block', 'important');
+            mainApp.style.setProperty('display', 'none', 'important');
+        }
+    }
+
+    function restoreSession(){
+        const savedDate = localStorage.getItem('selectedDate');
+        const savedTime = localStorage.getItem('selectedTime');
+        const savedLab = localStorage.getItem('selectedLab');
+        
+        if(savedDate){
+            console.log('Restoring session:', savedDate, savedTime, savedLab);
+            selectedDate = savedDate;
+            document.getElementById('dayFilter').value = savedDate;
+            loadTimeSlots();
+            
+            if(savedTime){
+                setTimeout(() => {
+                    selectedTime = savedTime;
+                    document.getElementById('timeFilter').value = savedTime;
+                    loadLabs();
+                    
+                    if(savedLab){
+                        setTimeout(() => {
+                            document.getElementById('labFilter').value = savedLab;
+                            onLabSelected();
+                        }, 100);
+                    }
+                }, 100);
+            }
+        }
+    }
+
+    // ── FILTERS ──
+    function loadTimeSlots(){
+        selectedDate=document.getElementById('dayFilter').value;
+        localStorage.setItem('selectedDate', selectedDate);
+        document.getElementById('timeFilter').innerHTML='<option value="">-- Select Time --</option>';
+        document.getElementById('labFilter').innerHTML='<option value="">-- Select Lab --</option>';
+        hideAll();
+        if(!selectedDate) return;
+        [...new Set(scheduleData.filter(i=>i.date===selectedDate).map(i=>i.timing))].forEach(t=>{
+            const o=document.createElement('option'); o.value=t; o.textContent=t;
+            document.getElementById('timeFilter').appendChild(o);
+        });
+    }
+    function loadLabs(){
+        selectedTime=document.getElementById('timeFilter').value;
+        localStorage.setItem('selectedTime', selectedTime);
+        document.getElementById('labFilter').innerHTML='<option value="">-- Select Lab --</option>';
+        hideAll();
+        if(!selectedTime) return;
+        [...new Set(scheduleData.filter(i=>i.date===selectedDate&&i.timing===selectedTime).map(i=>i.lab))].sort().forEach(l=>{
+            const o=document.createElement('option'); o.value=l; o.textContent=l;
+            document.getElementById('labFilter').appendChild(o);
+        });
+    }
+    async function onLabSelected(){
+        selectedLab=document.getElementById('labFilter').value;
+        localStorage.setItem('selectedLab', selectedLab);
+        
+        if(!selectedLab){ hideAll(); return; }
+        currentDepts=scheduleData.filter(i=>i.date===selectedDate&&i.timing===selectedTime&&i.lab===selectedLab);
+        document.getElementById('classDate').textContent=currentDepts[0].dateDisplay;
+        document.getElementById('classTiming').textContent=selectedTime;
+        document.getElementById('labNumber').textContent=selectedLab;
+        document.getElementById('departmentsInLab').innerHTML=currentDepts.map(d=>`<span class="dept-tag">${d.department}</span>`).join('');
+        document.getElementById('classInfo').classList.remove('hidden');
+        document.getElementById('loadingTxt').classList.remove('hidden');
+        document.getElementById('attendanceCard').classList.add('hidden');
+        document.getElementById('statsBar').classList.add('hidden');
+        document.getElementById('actionBar').classList.add('hidden');
+        document.getElementById('noStudentsTxt').classList.add('hidden');
+        try{
+            const {data,error}=await sb.from('feb26').select('*')
+                .eq('date',selectedDate).eq('time',selectedTime).eq('lab_no',selectedLab)
+                .order('department').order('roll_number');
+            if(error) throw new Error(error.message);
+            studentsData=data||[];
+            
+            // Show student count notification
+            if(studentsData.length > 0){
+                showMessage(`📊 Lab ${selectedLab}: ${studentsData.length} students found`, 'success');
+            }
+            
+            // Try to restore saved attendance from localStorage
+            const savedAttendance = localStorage.getItem('attendance_' + selectedDate + '_' + selectedTime + '_' + selectedLab);
+            if(savedAttendance){
+                attendanceStatus = JSON.parse(savedAttendance);
+            } else {
+                // DEFAULT: Mark everyone as PRESENT (1) initially
+                attendanceStatus={};
+                studentsData.forEach(s=>{ attendanceStatus[s.roll_number] = 1; });
+            }
+            
+            document.getElementById('loadingTxt').classList.add('hidden');
+            if(studentsData.length===0){ document.getElementById('noStudentsTxt').classList.remove('hidden'); document.getElementById('actionBar').classList.remove('hidden'); return; }
+            
+            // Restore student index
+            const savedIndex = localStorage.getItem('currentIndex_' + selectedLab);
+            currentIdx = savedIndex ? parseInt(savedIndex) : 0;
+            
+            updateStats();
+            showCard(currentIdx);
+            
+            // Reset submit button to disabled
+            const submitBtn = document.getElementById('submitFromCardBtn');
+            if(submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.style.opacity = '0.35';
+            }
+            
+            document.getElementById('statsBar').classList.remove('hidden');
+            document.getElementById('attendanceCard').classList.remove('hidden');
+            document.getElementById('actionBar').classList.remove('hidden');
+        } catch(e){
+            document.getElementById('loadingTxt').classList.add('hidden');
+            showMessage('Error: '+e.message,'error');
+        }
+    }
+
+    // ── CARD ──
+    function showCard(idx){
+        const s=studentsData[idx], total=studentsData.length;
+        document.getElementById('currentIndex').textContent=idx+1;
+        document.getElementById('totalStudents').textContent=total;
+        document.getElementById('progressFill').style.width=((idx+1)/total*100)+'%';
+        document.getElementById('cardSno').textContent='#'+(idx+1);
+        document.getElementById('cardName').textContent=s.name;
+        document.getElementById('cardRoll').textContent='🎓 Roll No: '+s.roll_number;
+        document.getElementById('cardDept').textContent=s.department;
+        updateToggleBtn(attendanceStatus[s.roll_number]);
+        document.getElementById('prevBtn').disabled=idx===0;
+        const isLast=idx===total-1;
+        
+        // On last student: hide Next, show BOTH Done and Submit
+        document.getElementById('nextBtn').classList.toggle('hidden',isLast);
+        document.getElementById('finishBtn').classList.toggle('hidden',!isLast);
+        document.getElementById('submitFromCardBtn').classList.toggle('hidden',!isLast);
+    }
+
+    function updateToggleBtn(status){
+        const btn=document.getElementById('attendanceToggleBtn');
+        const icon=document.getElementById('btnIcon');
+        const text=document.getElementById('btnText');
+        btn.className='attendance-btn';
+        if(status===1 || status===undefined || status===null){ 
+            btn.classList.add('present-btn'); 
+            icon.textContent='✅'; 
+            text.textContent='PRESENT'; 
+        }
+        else if(status===0){ 
+            btn.classList.add('absent-btn'); 
+            icon.textContent='❌'; 
+            text.textContent='ABSENT'; 
+        }
+    }
+
+    function toggleCurrentStudent(){
+        const s=studentsData[currentIdx];
+        const cur=attendanceStatus[s.roll_number];
+        // Simple toggle: Present (1) <-> Absent (0)
+        attendanceStatus[s.roll_number] = (cur === 1) ? 0 : 1;
+        updateToggleBtn(attendanceStatus[s.roll_number]);
+        updateStats();
+        // Save attendance to localStorage
+        localStorage.setItem('attendance_' + selectedDate + '_' + selectedTime + '_' + selectedLab, JSON.stringify(attendanceStatus));
+    }
+
+    function goToNext(){ 
+        if(currentIdx<studentsData.length-1){ 
+            currentIdx++; 
+            showCard(currentIdx);
+            localStorage.setItem('currentIndex_' + selectedLab, currentIdx);
+        } 
+    }
+    function goToPrev(){ 
+        if(currentIdx>0){ 
+            currentIdx--; 
+            showCard(currentIdx);
+            localStorage.setItem('currentIndex_' + selectedLab, currentIdx);
+        } 
+    }
+
+    function enableSubmitBtn(){
+        const submitBtn = document.getElementById('submitFromCardBtn');
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = '1';
+        submitBtn.style.cursor = 'pointer';
+        showMessage('✅ Review complete! You can now submit attendance.', 'success');
+    }
+
+    // ── STATS ──
+    function updateStats(){
+        const vals=Object.values(attendanceStatus);
+        document.getElementById('totalCount').textContent=studentsData.length;
+        document.getElementById('presentCount').textContent=vals.filter(v=>v===1).length;
+        document.getElementById('absentCount').textContent=vals.filter(v=>v===0).length;
+    }
+
+    // ── EDIT LIST MODAL ──
+    function openEditModal(){
+        // Show confirmation
+        const vals=Object.values(attendanceStatus);
+        const marked=vals.filter(v=>v===1||v===0).length;
+        if(marked>0 && !confirm(`Open edit list?\n\nYou have marked ${marked} students.\nYou can tap any student to edit their attendance.`)) return;
+        
+        const body=document.getElementById('editModalBody');
+        body.innerHTML='';
+        studentsData.forEach((s,i)=>{
+            const status=attendanceStatus[s.roll_number];
+            const badgeClass=status===1?'present':status===0?'absent':'unmarked';
+            const badgeTxt=status===1?'✅ Present':status===0?'❌ Absent':'⚠️ Unmarked';
+            const div=document.createElement('div');
+            div.className='edit-student-item';
+            div.onclick=()=>{ currentIdx=i; showCard(i); closeEditModal(); window.scrollTo({top:300,behavior:'smooth'}); };
+            div.innerHTML=`
+                <div class="esi-left">
+                    <div class="esi-num">${i+1}</div>
+                    <div>
+                        <div class="esi-name">${s.name}</div>
+                        <div class="esi-roll">${s.roll_number} · ${s.department}</div>
+                    </div>
+                </div>
+                <span class="esi-badge ${badgeClass}">${badgeTxt}</span>`;
+            body.appendChild(div);
+        });
+        document.getElementById('editModal').style.display='block';
+    }
+    function closeEditModal(){ document.getElementById('editModal').style.display='none'; }
+
+    // ── SUBMIT ──
+    async function submitAttendance(){
+        if(!selectedLab||studentsData.length===0){ showMessage('No students to submit','error'); return; }
+        
+        // Count stats and get absent roll numbers
+        const present = [];
+        const absent = [];
+        const unmarked = [];
+        
+        studentsData.forEach(s => {
+            const status = attendanceStatus[s.roll_number];
+            if(status === 1) present.push(s.roll_number);
+            else if(status === 0) absent.push(s.roll_number);
+            else unmarked.push(s.roll_number);
+        });
+        
+        // Show custom modal with scrollable absent list
+        document.getElementById('submitPresentCount').textContent = present.length;
+        document.getElementById('submitAbsentCount').textContent = absent.length;
+        document.getElementById('submitUnmarkedCount').textContent = unmarked.length;
+        document.getElementById('submitTotalCount').textContent = studentsData.length;
+        
+        if(absent.length > 0){
+            document.getElementById('absentListContainer').classList.remove('hidden');
+            document.getElementById('absentRollList').textContent = absent.join(', ');
+        } else {
+            document.getElementById('absentListContainer').classList.add('hidden');
+        }
+        
+        if(unmarked.length > 0){
+            document.getElementById('unmarkedRow').classList.remove('hidden');
+        } else {
+            document.getElementById('unmarkedRow').classList.add('hidden');
+        }
+        
+        document.getElementById('submitConfirmModal').style.display = 'block';
+    }
+    
+    function closeSubmitConfirm(){
+        document.getElementById('submitConfirmModal').style.display = 'none';
+    }
+    
+    async function confirmSubmit(){
+        closeSubmitConfirm();
+        
+        try{
+            await Promise.all(studentsData.map(s=>sb.from('feb26').update({
+                attendance:attendanceStatus[s.roll_number]!==undefined?attendanceStatus[s.roll_number]:0,
+                update_at:new Date().toISOString()
+            }).eq('roll_number',s.roll_number).eq('date',selectedDate).eq('time',selectedTime).eq('lab_no',selectedLab)));
+            
+            // Clear saved attendance for this lab after successful submit
+            localStorage.removeItem('attendance_' + selectedDate + '_' + selectedTime + '_' + selectedLab);
+            localStorage.removeItem('currentIndex_' + selectedLab);
+            
+            alert('✅ Success!\n\nAttendance submitted successfully.');
+            showMessage('✅ Attendance submitted successfully!','success');
+        } catch(e){ 
+            alert('❌ Error!\n\n' + e.message);
+            showMessage('Error: '+e.message,'error'); 
+        }
+    }
+
+    // ── ADD STUDENT ──
+    function openAddStudentModal(){
+        if(!selectedLab){ showMessage('Select a lab first','error'); return; }
+        const sel=document.getElementById('newDepartment');
+        sel.innerHTML='<option value="">-- Select Department --</option>';
+        currentDepts.forEach(d=>{ const o=document.createElement('option'); o.value=d.department; o.textContent=d.department; sel.appendChild(o); });
+        document.getElementById('addStudentModal').style.display='block';
+    }
+    function closeAddStudentModal(){ document.getElementById('addStudentModal').style.display='none'; document.getElementById('newRollNumber').value=''; document.getElementById('newName').value=''; }
+    async function addStudent(e){
+        e.preventDefault();
+        const roll=parseInt(document.getElementById('newRollNumber').value);
+        const name=document.getElementById('newName').value;
+        const dept=document.getElementById('newDepartment').value;
+        
+        if(!confirm(`Add new student?\n\n🎓 Roll: ${roll}\n👤 Name: ${name}\n📚 Dept: ${dept.substring(0,40)}...`)) return;
+        
+        try{
+            const {error}=await sb.from('feb26').insert([{ roll_number:roll, name:name, department:dept, date:selectedDate, time:selectedTime, lab_no:selectedLab, attendance:0 }]);
+            if(error) throw error;
+            alert('✅ Success!\n\nStudent added successfully.');
+            showMessage('Student added!','success');
+            closeAddStudentModal();
+            onLabSelected();
+        } catch(e){ 
+            alert('❌ Error!\n\n' + e.message + '\n\n(Roll number must be unique)');
+            showMessage('Error: '+e.message,'error'); 
+        }
+    }
+
+    // ── EXPORT ──
+    async function exportToExcel(){
+        if(!confirm('Export attendance data to Excel?\n\nThis will download all records from the database.')) return;
+        
+        try{
+            const {data,error}=await sb.from('feb26').select('*').order('date').order('time').order('lab_no').order('roll_number');
+            if(error) throw error;
+            if(!data||data.length===0){ 
+                alert('⚠️ No records found!\n\nThere is no data to export.');
+                showMessage('No records','error'); 
+                return; 
+            }
+            const wb=XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(data.map(r=>({'Date':r.date,'Time':r.time,'Lab':r.lab_no,'Department':r.department,'Roll':r.roll_number,'Name':r.name,'Attendance':r.attendance===1?'Present':'Absent'}))),'Attendance');
+            XLSX.writeFile(wb,`Attendance_${new Date().toISOString().split('T')[0]}.xlsx`);
+            alert(`✅ Success!\n\nExported ${data.length} records to Excel.\nCheck your Downloads folder.`);
+            showMessage('Exported!','success');
+        } catch(e){ 
+            alert('❌ Error!\n\n' + e.message);
+            showMessage('Error: '+e.message,'error'); 
+        }
+    }
+
+    // ── HELPERS ──
+    function hideAll(){
+        ['classInfo','statsBar','attendanceCard','actionBar','noStudentsTxt'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+    }
+    
+    function clearSessionData(){
+        if(!confirm('Clear all saved attendance data for this session?\n\nThis will reset all marks to PRESENT.')){
+            return;
+        }
+        // Clear attendance data for current lab
+        if(selectedLab){
+            localStorage.removeItem('attendance_' + selectedDate + '_' + selectedTime + '_' + selectedLab);
+            localStorage.removeItem('currentIndex_' + selectedLab);
+        }
+        // Reload the lab data
+        if(selectedLab){
+            onLabSelected();
+        }
+        showMessage('✅ Session data cleared! All students reset to PRESENT.', 'success');
+    }
+    
+    function showMessage(text,type){
+        const m=document.getElementById('message');
+        m.textContent=text; m.className='message '+type; m.style.display='block';
+        setTimeout(()=>{ m.style.display='none'; },5000);
+    }
+
+    window.onload=checkLogin;
+    document.addEventListener('DOMContentLoaded',()=>{
+        const pw=document.getElementById('loginPassword');
+        if(pw) pw.addEventListener('keypress',e=>{ if(e.key==='Enter') login(); });
+    });
+    window.onclick=e=>{
+        if(e.target===document.getElementById('addStudentModal')) closeAddStudentModal();
+        if(e.target===document.getElementById('editModal')) closeEditModal();
+        if(e.target===document.getElementById('submitConfirmModal')) closeSubmitConfirm();
+    };
+</script>
+</body>
+</html>
